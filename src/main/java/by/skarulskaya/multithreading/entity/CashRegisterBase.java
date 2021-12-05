@@ -7,6 +7,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -16,19 +17,15 @@ public class CashRegisterBase {
     private static final Logger logger = LogManager.getLogger();
     private static CashRegisterBase instance;
     private static final ReentrantLock instanceLocker = new ReentrantLock();
-    private static AtomicBoolean isInstanceCreated = new AtomicBoolean(false);
-    private static ReentrantLock orderLock = new ReentrantLock();
-    private static ArrayList<ArrayDeque<Condition>> orderQueues;
-    private static ArrayDeque<CashRegister> cashRegisters;
+    private static final AtomicBoolean isInstanceCreated = new AtomicBoolean(false);
+    private static ArrayList<Semaphore> checkouts;
+    private static Semaphore orderCounter = new Semaphore(1, true);
 
-    private CashRegisterBase(int ordersCount) {
-        orderQueues = new ArrayList<>(ordersCount);
-        cashRegisters = new ArrayDeque<>(ordersCount);
-        for(int i=0; i<ordersCount; i++) {
-            ArrayDeque<Condition> orderQueue = new ArrayDeque<>(5);
-            orderQueues.add(orderQueue);
-            CashRegister register = new CashRegister();
-            cashRegisters.add(register);
+    private CashRegisterBase(int checkoutCount) {
+        checkouts = new ArrayList<>(checkoutCount);
+        for(int i=0; i<checkoutCount; i++) {
+            Semaphore checkout = new Semaphore(1, true);
+            checkouts.add(checkout);
         }
     }
 
@@ -37,7 +34,7 @@ public class CashRegisterBase {
             try {
                 instanceLocker.lock();
                 if (instance == null) {
-                    instance = new CashRegisterBase();
+                    instance = new CashRegisterBase(3);
                     isInstanceCreated.set(true);
                 }
             } finally {
@@ -47,11 +44,12 @@ public class CashRegisterBase {
         return instance;
     }
 
-    public CashRegister getInLine() {
+    /*public CashRegister getInLine() {
+        CashRegister register = null;// todo any other options?
         try {
             orderLock.lock();
             TimeUnit.SECONDS.sleep(1);
-            if(cashRegisters.isEmpty()) {
+            if(cashRegisters.isEmpty()) { // все кассы заняты
                 Condition condition = orderLock.newCondition();
                 ArrayDeque<Condition> smaller = orderQueues.stream()
                         .min((o1, o2) -> {
@@ -61,12 +59,71 @@ public class CashRegisterBase {
                         }).get();
                 smaller.add(condition);
             }
-            CashRegister register = cashRegisters.poll();
-            return register;
+            register = cashRegisters.poll();
         } catch (InterruptedException e) {
             logger.error(e.getMessage(), e);
+            Thread.currentThread().interrupt();
         } finally {
             orderLock.unlock();
+        }
+        return register;
+    }*/
+
+    public Semaphore getInLine(long visitorId) {
+        Semaphore checkout = null;// todo any other options?
+        try {
+            TimeUnit.SECONDS.sleep(1);
+            checkout = checkouts.stream().min((s1, s2) -> {
+                int size1 = s1.getQueueLength();
+                int size2 = s2.getQueueLength();
+                return Integer.compare(size1, size2);
+            }).get();
+            logger.info("visitor standing in queue: "+visitorId+' '+checkout);
+            checkout.acquire();
+        } catch (InterruptedException e) {
+            logger.error(e.getMessage(), e);
+            Thread.currentThread().interrupt();
+        }
+        return checkout;
+    }
+
+    public void doOrderCheckout(Semaphore checkout, long visitorId) {
+        try {
+            TimeUnit.SECONDS.sleep((int)(Math.random() * 10));
+            logger.info("Order doing: " +visitorId+' '+ checkout);
+        } catch (InterruptedException e) {
+            logger.error(e.getMessage(), e);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public void releaseCashRegister(Semaphore checkout, long visitorId) {
+        logger.info("Terminal is released: "+visitorId+' '+ checkout);
+        if (checkout != null) {
+            checkout.release();
+        }
+    }
+
+    public void waitOrder(long visitorId) {
+        try {
+            TimeUnit.SECONDS.sleep((int)(Math.random() * 10));
+            logger.info("Order waiting:"+visitorId);
+        } catch (InterruptedException e) {
+            logger.error(e.getMessage(), e);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public void getOrder(long visitorId) {
+        try {
+            logger.info("Visitor waiting for get order: "+visitorId);
+            orderCounter.acquire();
+            TimeUnit.SECONDS.sleep(1);
+            orderCounter.release();
+            logger.info("Order done! "+ visitorId);
+        } catch (InterruptedException e) {
+            logger.error(e.getMessage(), e);
+            Thread.currentThread().interrupt();
         }
     }
 }

@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 public class Visitor implements Callable<String> {
@@ -25,24 +26,25 @@ public class Visitor implements Callable<String> {
     }
 
     @Override
-    public String call(){
-        if(preOrder) {
+    public String call() {
+        CashRegisterBase cash = CashRegisterBase.getInstance();
+        if (preOrder) {
             doPreOrder();
+        } else {
+            Semaphore checkout = cash.getInLine(id);
+            cash.doOrderCheckout(checkout, id);
+            cash.releaseCashRegister(checkout, id);
         }
-        else {
-            //todo стать в очередь в кассу, где меньше людей? или отправить посетителя в какой-то метод,
-            //распределяющий их по кассам?
-            //подождать пока заказ готовиться
-            //забрать заказ с выдачи
-        }
-        return "Visitor id "+id;
+        cash.waitOrder(id);
+        cash.getOrder(id);
+        return "Visitor gone" + id;
     }
 
     private void doPreOrder() {
         try {
-            TimeUnit.SECONDS.sleep((int)(Math.random() * 10));
-        }
-        catch(InterruptedException exception) {
+            logger.info("visitor doing preorder " + id);
+            TimeUnit.SECONDS.sleep((int) (Math.random() * 10));
+        } catch (InterruptedException exception) {
             logger.error(exception.getMessage(), exception);
         }
     }
