@@ -1,40 +1,37 @@
 package by.skarulskaya.multithreading.entity;
 
-import com.sun.jmx.remote.internal.ArrayQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class CashRegisterBase {
+public class McDonalds {
     private static final Logger logger = LogManager.getLogger();
-    private static CashRegisterBase instance;
+    private static McDonalds instance;
     private static final ReentrantLock instanceLocker = new ReentrantLock();
     private static final AtomicBoolean isInstanceCreated = new AtomicBoolean(false);
     private static ArrayList<Semaphore> checkouts;
-    private static Semaphore orderCounter = new Semaphore(1, true);
+    private static final Semaphore orderCounter = new Semaphore(1, true);
 
-    private CashRegisterBase(int checkoutCount) {
+    private McDonalds(int checkoutCount) {
         checkouts = new ArrayList<>(checkoutCount);
-        for(int i=0; i<checkoutCount; i++) {
+        for (int i = 0; i < checkoutCount; i++) {
             Semaphore checkout = new Semaphore(1, true);
             checkouts.add(checkout);
+            logger.info("Checkout: " + checkout);
         }
     }
 
-    public static CashRegisterBase getInstance() {
+    public static McDonalds getInstance() {
         if (!isInstanceCreated.get()) {
             try {
                 instanceLocker.lock();
                 if (instance == null) {
-                    instance = new CashRegisterBase(3);
+                    instance = new McDonalds(3);
                     isInstanceCreated.set(true);
                 }
             } finally {
@@ -45,7 +42,7 @@ public class CashRegisterBase {
     }
 
     /*public CashRegister getInLine() {
-        CashRegister register = null;// todo any other options?
+        CashRegister register = null;
         try {
             orderLock.lock();
             TimeUnit.SECONDS.sleep(1);
@@ -74,11 +71,11 @@ public class CashRegisterBase {
         try {
             TimeUnit.SECONDS.sleep(1);
             checkout = checkouts.stream().min((s1, s2) -> {
-                int size1 = s1.getQueueLength();
-                int size2 = s2.getQueueLength();
+                int size1 = s1.getQueueLength() + (s1.availablePermits() == 0 ? 1 : 0);
+                int size2 = s2.getQueueLength() + (s2.availablePermits() == 0 ? 1 : 0);
                 return Integer.compare(size1, size2);
             }).get();
-            logger.info("visitor standing in queue: "+visitorId+' '+checkout);
+            logger.info("visitor standing in queue: " + visitorId + ' ' + checkout);
             checkout.acquire();
         } catch (InterruptedException e) {
             logger.error(e.getMessage(), e);
@@ -87,17 +84,17 @@ public class CashRegisterBase {
         return checkout;
     }
 
-    public void doOrderCheckout(Semaphore checkout, long visitorId) {
+    public void doOrder(Semaphore checkout, long visitorId) {
         try {
-            TimeUnit.SECONDS.sleep((int)(Math.random() * 10));
-            logger.info("Order doing: " +visitorId+' '+ checkout);
+            //logger.info("Order doing: " +visitorId+' '+ checkout);
+            TimeUnit.SECONDS.sleep((int)(Math.random() * 20));
         } catch (InterruptedException e) {
             logger.error(e.getMessage(), e);
             Thread.currentThread().interrupt();
         }
     }
 
-    public void releaseCashRegister(Semaphore checkout, long visitorId) {
+    public void releaseCheckout(Semaphore checkout, long visitorId) {
         logger.info("Terminal is released: "+visitorId+' '+ checkout);
         if (checkout != null) {
             checkout.release();
@@ -106,8 +103,8 @@ public class CashRegisterBase {
 
     public void waitOrder(long visitorId) {
         try {
+            //logger.info("Order waiting:"+visitorId);
             TimeUnit.SECONDS.sleep((int)(Math.random() * 10));
-            logger.info("Order waiting:"+visitorId);
         } catch (InterruptedException e) {
             logger.error(e.getMessage(), e);
             Thread.currentThread().interrupt();
@@ -116,11 +113,11 @@ public class CashRegisterBase {
 
     public void getOrder(long visitorId) {
         try {
-            logger.info("Visitor waiting for get order: "+visitorId);
+            //logger.info("Visitor waiting for get order: "+visitorId);
             orderCounter.acquire();
             TimeUnit.SECONDS.sleep(1);
             orderCounter.release();
-            logger.info("Order done! "+ visitorId);
+            //logger.info("Order done! "+ visitorId);
         } catch (InterruptedException e) {
             logger.error(e.getMessage(), e);
             Thread.currentThread().interrupt();

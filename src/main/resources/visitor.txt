@@ -1,0 +1,10 @@
+100 true
+101 false
+102 false
+103 false
+111 true
+112 false
+125 false
+128 false
+130 false
+135 true

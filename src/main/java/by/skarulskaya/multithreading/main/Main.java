@@ -5,10 +5,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
 public class Main {
     static Logger logger = LogManager.getLogger();
@@ -17,13 +14,13 @@ public class Main {
         try {
             ExecutorService executor = Executors.newFixedThreadPool(5);
             ArrayList<Future<String>> listFuture = new ArrayList<>();
-            for (int i = 0; i<5; i++) {
-                Visitor visitor = new Visitor(i, i % 3 == 0);
+            for (int i = 0; i<20; i++) {
+                Visitor visitor = new Visitor(i, false);
                 listFuture.add(executor.submit(visitor));
             }
             executor.shutdown();
             for (Future<String> future : listFuture) {
-                logger.info(future.get());
+                /*logger.info(*/future.get();/*);*/
             }
         } catch (InterruptedException | ExecutionException e) {
             logger.error("CustomException or InterruptedException", e);
